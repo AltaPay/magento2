@@ -3,7 +3,7 @@ name: 'Deployment'
 # Only trigger, when the build workflow succeeded
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     
 jobs:
   terraform:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    
+
     # Configure AWS credentials
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -19,9 +19,9 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: eu-west-1
-          
-    # Checkout the repository to the GitHub Actions runner      
-    - uses: actions/checkout@v1  
+
+    # Checkout the repository to the GitHub Actions runner
+    - uses: actions/checkout@v1
       with:
         repository: AltaPay/plugin-infrastructure
         token: ${{ secrets.ACCESS_TOKEN }}
@@ -35,26 +35,33 @@ jobs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
-      run: terraform init 
+      run: terraform init
       working-directory: ../plugin-infrastructure/provision/plugins
 
 
-    # Select a terraofrm workspace
+    # Select a terraform workspace
     - name: Terraform workspace
       run: terraform workspace select magento22x
       working-directory: ../plugin-infrastructure/provision/plugins
-      
-      
+
+
     # Generates an execution plan for Terraform
     - name: Terraform Plan
-      run: terraform plan
+      run: terraform plan -var ec2_type=t2.medium
       working-directory: ../plugin-infrastructure/provision/plugins
 
-    # Run Terraform Apply      
+    # Run Terraform Apply
     - name: Terraform Apply
-      run: terraform apply -auto-approve
+      run: terraform apply -var ec2_type=t2.medium -auto-approve
       working-directory: ../plugin-infrastructure/provision/plugins
-   
+      
+    # Add a sleep of 20 seconds, in case instance needs to warm up  
+    - name: Sleep for 20 seconds
+      uses: jakejarvis/wait-action@master
+      with:
+        time: '20s'  
+    
+
     # Run Ansible playbook
     - name: Run playbook
       uses: dawidd6/action-ansible-playbook@v2
@@ -65,3 +72,4 @@ jobs:
         options: |
           -u ubuntu
           -i inventory
+          --extra-vars "branch_name=${{ github.head_ref }} gatewayURL=${{ secrets.GATEWAYURL }} gatewayUser=${{ secrets.GATEWAYUSER }} gatewayPass=${{ secrets.GATEWAYPASS }}"   
